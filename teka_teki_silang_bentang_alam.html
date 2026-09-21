@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TTS Bentang Alam</title>
+    <!-- Library Tesseract.js untuk AI Pengenal Coretan Huruf -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <!-- Canvas Confetti untuk Efek Selebrasi -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root {
+            --cell-bg: rgba(255, 255, 255, 0.95);
+            --cell-border: #0f172a;
+            --highlight-bg: #fef08a;
+            --highlight-border: #ca8a04;
+            --active-cell-bg: #fde047;
+            --correct-bg: #bbf7d0;
+            --correct-border: #15803d;
+            --incorrect-bg: #fecaca;
+            --incorrect-border: #b91c1c;
+            --text-color: #020617;
+            --primary-btn: #2563eb;
+            --primary-btn-hover: #1d4ed8;
+            --danger-btn: #ef4444;
+            --danger-btn-hover: #dc2626;
+            --warning-btn: #f59e0b;
+            --warning-btn-hover: #d97706;
+            --success-btn: #16a34a;
+            --success-btn-hover: #15803d;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0f172a;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 
+        ======================================================================
+        KODE TEMPAT LATAR BELAKANG (BACKGROUND) TTS - RESOLUSI 1920x1080 (16:9)
+        ======================================================================
+        Ganti URL di bawah ini dengan gambar latar belakang/soal Anda.
+        TIDAK ADA EFEK BLUR / TRANSPARANSI DI ATAS GAMBAR INI.
+        */
+        #tts-background {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            /* Masukkan link/URL gambar latar belakang soal 1920x1080 Anda di bawah ini: */
+            background-image: url('https://placehold.co/1920x1080/0f172a/ffffff?text=Latar+Belakang+Soal+TTS+(1920x1080)');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        /* ====================================================================== */
+
+        #viewport-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* DASHBOARD LANDING SCREEN (MENUTUPI FULL LAYAR TANPA MENAMPILKAN GRID TTS) */
+        #dashboard-screen {
+            position: absolute;
+            inset: 0;
+            z-index: 100; /* Z-Index Tinggi agar Grid TTS Sepenuhnya Tertutup */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            text-align: center;
+            transition: opacity 0.4s ease, visibility 0.4s ease;
+            background: #090d16; /* Mensekat grid TTS secara sempurna */
+        }
+
+        /* Kode Latar Belakang Dashboard 1920x1080 Terpisah */
+        #dashboard-bg {
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            background-image: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            /* Anda dapat mengganti nilai linear-gradient di atas dengan gambar custom:
+               background-image: url('https://via.placeholder.com/1920x1080/0f172a/ffffff?text=Background+Dashboard');
+            */
+            background-size: cover;
+            background-position: center;
+        }
+
+        #dashboard-screen.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .dashboard-content {
+            background: rgba(15, 23, 42, 0.85);
+            padding: 40px 50px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            max-width: 650px;
+            width: 90%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .dashboard-title {
+            font-size: clamp(2rem, 4vw, 3.2rem);
+            font-weight: 900;
+            color: #ffffff;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+            text-shadow: 0 4px 12px rgba(0,0,0,0.6);
+        }
+
+        .dashboard-subtitle {
+            font-size: clamp(1rem, 2vw, 1.3rem);
+            color: #60a5fa;
+            margin-bottom: 35px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .menu-buttons {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .menu-btn {
+            background: var(--primary-btn);
+            color: #ffffff;
+            border: none;
+            padding: 16px 32px;
+            font-size: 1.15rem;
+            font-weight: 800;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            min-width: 200px;
+        }
+
+        .menu-btn:hover {
+            background: var(--primary-btn-hover);
+            transform: translateY(-3px) scale(1.03);
+            box-shadow: 0 14px 28px rgba(0, 0, 0, 0.5);
+        }
+
+        .menu-btn-success {
+            background: var(--success-btn);
+        }
+        .menu-btn-success:hover {
+            background: var(--success-btn-hover);
+        }
+
+        /* GAME TTS LAYAR */
+        #game-screen {
+            position: absolute;
+            inset: 0;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            padding: 10px 10px 70px 10px; /* Jarak bawah untuk panel tombol */
+        }
+
+        /* Panel Tombol Kontrol (Di Bawah Tengah) */
+        .bottom-bar {
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 30;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: center;
+            background: rgba(15, 23, 42, 0.95);
+            padding: 6px 14px;
+            border-radius: 50px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            max-width: 95vw;
+            overflow-x: auto;
+        }
+
+        .btn {
+            background: var(--primary-btn);
+            color: #ffffff;
+            border: none;
+            padding: 8px 14px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            background: var(--primary-btn-hover);
+            transform: translateY(-2px);
+        }
+
+        .btn-warning { background: var(--warning-btn); }
+        .btn-warning:hover { background: var(--warning-btn-hover); }
+
+        .btn-danger { background: var(--danger-btn); }
+        .btn-danger:hover { background: var(--danger-btn-hover); }
+
+        .btn-reset { background: #475569; }
+        .btn-reset:hover { background: #334155; }
+
+        /* GRID CONTAINER - SANGAT PRESISI FIT DI DALAM CANVAS TANPA OVERFLOW */
+        .grid-wrapper {
+            position: relative;
+            z-index: 10;
+            display: grid;
+            grid-template-columns: repeat(18, 1fr);
+            grid-template-rows: repeat(14, 1fr);
+            gap: 2px;
+            
+            /* Menggunakan kalkulasi responsive 18:14 rasio agar fit 100% di layar */
+            width: min(92vw, calc((82vh - 80px) * (18 / 14)));
+            height: min(calc(92vw * (14 / 18)), calc(82vh - 80px));
+            
+            justify-content: center;
+            align-content: center;
+            margin: auto;
+        }
+
+        /* KOTAK PERSEGI SIMETRIS (1:1 Aspect Ratio) */
+        .cell {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background-color: var(--cell-bg);
+            border: 1.5px solid var(--cell-border);
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            transition: background-color 0.2s, border-color 0.2s, transform 0.15s;
+        }
+
+        .cell.empty-cell {
+            background-color: transparent;
+            border-color: transparent;
+            box-shadow: none;
+            pointer-events: none;
+        }
+
+        .cell.highlighted {
+            background-color: var(--highlight-bg);
+            border-color: var(--highlight-border);
+            transform: scale(1.02);
+            z-index: 2;
+        }
+
+        .cell.focused {
+            background-color: var(--active-cell-bg) !important;
+            border: 2.5px solid #b45309 !important;
+            z-index: 3;
+        }
+
+        .cell.correct {
+            background-color: var(--correct-bg) !important;
+            border-color: var(--correct-border) !important;
+        }
+
+        .cell.incorrect {
+            background-color: var(--incorrect-bg) !important;
+            border-color: var(--incorrect-border) !important;
+        }
+
+        .cell .number {
+            position: absolute;
+            top: 1px;
+            left: 2px;
+            font-size: clamp(0.5rem, 1vw, 0.65rem);
+            font-weight: 800;
+            color: #b91c1c;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 0px 2px;
+            border-radius: 2px;
+            cursor: pointer;
+            z-index: 15;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            transition: transform 0.15s, background-color 0.15s;
+        }
+
+        .cell .number:hover {
+            transform: scale(1.2);
+            background: #fef08a;
+        }
+
+        .cell .digital-text {
+            position: absolute;
+            font-size: clamp(0.9rem, 2vw, 1.3rem);
+            font-weight: 900;
+            color: var(--text-color);
+            pointer-events: none;
+            text-transform: uppercase;
+            z-index: 6;
+        }
+
+        .cell canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 8;
+            pointer-events: none;
+            touch-action: none;
+        }
+
+        .cell.highlighted canvas {
+            pointer-events: auto;
+            cursor: crosshair;
+        }
+
+        .timer-ring {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            width: 12px;
+            height: 12px;
+            z-index: 12;
+            pointer-events: none;
+            display: none;
+        }
+
+        .timer-ring circle {
+            fill: none;
+            stroke-width: 3;
+            stroke-linecap: round;
+        }
+
+        .timer-ring .bg { stroke: rgba(0,0,0,0.15); }
+
+        .timer-ring .progress {
+            stroke: #2563eb;
+            stroke-dasharray: 44;
+            stroke-dashoffset: 0;
+            transition: stroke-dashoffset 0.1s linear;
+        }
+
+        #loading-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.95);
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+        }
+
+        .spinner {
+            border: 5px solid rgba(255,255,255,0.2);
+            border-top: 5px solid #3b82f6;
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* MODAL POPUPS */
+        .modal-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 300;
+            animation: fadeIn 0.25s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-card {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 24px 30px;
+            max-width: 480px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transform: scale(0.9);
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        @keyframes popIn {
+            to { transform: scale(1); }
+        }
+
+        .modal-card.shake {
+            animation: shake 0.4s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-10px); }
+            40%, 80% { transform: translateX(10px); }
+        }
+
+        .modal-icon {
+            font-size: 2.8rem;
+            margin-bottom: 8px;
+            display: inline-block;
+        }
+
+        .modal-card h2 {
+            font-size: 1.4rem;
+            margin-bottom: 8px;
+            font-weight: 800;
+        }
+
+        .modal-card p, .modal-card ul {
+            font-size: 0.95rem;
+            color: #475569;
+            margin-bottom: 18px;
+            line-height: 1.5;
+            text-align: left;
+        }
+
+        .modal-card ul {
+            padding-left: 20px;
+        }
+
+        .modal-card li {
+            margin-bottom: 8px;
+        }
+
+        .modal-card.correct-modal h2 { color: #15803d; }
+        .modal-card.incorrect-modal h2 { color: #b91c1c; }
+        .modal-card.info-modal h2 { color: #0369a1; }
+    </style>
+</head>
+<body>
+
+    <div id="viewport-container">
+        <!-- Latar Belakang Custom TTS (1920x1080) -->
+        <div id="tts-background"></div>
+
+        <!-- Overlay Loading Tesseract AI -->
+        <div id="loading-overlay">
+            <div class="spinner"></div>
+            <div id="loading-text" style="font-size: 1.1rem; font-weight: 600;">Memuat Mesin AI Pengenal Huruf...</div>
+        </div>
+
+        <!-- DASHBOARD UTAMA (MENSEKAT FULL LAYAR GRID TTS) -->
+        <div id="dashboard-screen">
+            <div id="dashboard-bg"></div>
+            <div class="dashboard-content">
+                <h1 class="dashboard-title">TEKA TEKI SILANG</h1>
+                <div class="dashboard-subtitle">BENTANG ALAM</div>
+                
+                <div class="menu-buttons">
+                    <button class="menu-btn" onclick="openGuideModal()">
+                        📖 Petunjuk
+                    </button>
+                    <button class="menu-btn menu-btn-success" onclick="startTTSGame()">
+                        🎮 Mulai TTS
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- GAME PLAY TTS SCREEN -->
+        <div id="game-screen">
+            <!-- Container Grid TTS (100% Fit di Canvas Tanpa Overflow) -->
+            <div class="grid-wrapper" id="grid-container"></div>
+
+            <!-- Panel Tombol Kontrol (Di Bawah Tengah) -->
+            <div class="bottom-bar">
+                <button class="btn" onclick="checkActiveWord()">
+                    ✅ Cek Kata Ini
+                </button>
+                <button class="btn btn-warning" onclick="clearFocusedCell()">
+                    ✏️ Hapus Kotak
+                </button>
+                <button class="btn btn-danger" onclick="clearActiveWord()">
+                    🗑️ Hapus Kata Ini
+                </button>
+                <button class="btn btn-reset" onclick="goToDashboard()">
+                    🏠 Main Menu
+                </button>
+            </div>
+        </div>
+
+        <!-- Pop-up Modal Interaktif Hasil & Petunjuk -->
+        <div class="modal-overlay" id="result-modal">
+            <div class="modal-card" id="modal-card-box">
+                <div class="modal-icon" id="modal-icon">🎉</div>
+                <h2 id="modal-title">Jawaban Benar!</h2>
+                <div id="modal-message"></div>
+                <button class="btn" style="margin: 0 auto; padding: 10px 28px;" onclick="closeModal()">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Data Layout TTS (Grid Extended: 18 Kolom x 14 Baris agar tidak menempel)
+        const wordData = [
+            { id: "w1", word: "PEGUNUNGAN", row: 1, col: 0, dir: "across", num: 1, title: "1 Mendatar" },
+            { id: "w2", word: "PALUNG",     row: 1, col: 0, dir: "down",   num: 1, title: "1 Menurun" },
+            { id: "w3", word: "LAUT",       row: 3, col: 0, dir: "across", num: 2, title: "2 Mendatar" },
+            { id: "w4", word: "GUNUNG",     row: 1, col: 8, dir: "down",   num: 3, title: "3 Menurun" },
+            { id: "w5", word: "RAWA",       row: 0, col: 11, dir: "down",  num: 4, title: "4 Menurun" },
+            { id: "w6", word: "GURUN",      row: 5, col: 7, dir: "across", num: 5, title: "5 Mendatar" },
+            { id: "w7", word: "JURANG",     row: 1, col: 15, dir: "down",  num: 6, title: "6 Menurun" },
+            { id: "w8", word: "SUNGAI",     row: 8, col: 11, dir: "across", num: 7, title: "7 Mendatar" },
+            { id: "w9", word: "SAWAH",      row: 8, col: 11, dir: "down",   num: 7, title: "7 Menurun" },
+            { id: "w10", word: "PANTAI",    row: 11, col: 5, dir: "across", num: 8, title: "8 Mendatar" }
+        ];
+
+        const ROWS = 14;
+        const COLS = 18;
+        const DRAW_DELAY_MS = 2200;
+
+        let grid = [];
+        let activeWordId = null;
+        let focusedCellPos = null;
+        let cellTimers = {};
+        let tessWorker = null;
+
+        async function initTesseract() {
+            try {
+                tessWorker = await Tesseract.createWorker('eng');
+                await tessWorker.setParameters({
+                    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+                });
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (loadingOverlay) loadingOverlay.style.display = 'none';
+            } catch (err) {
+                console.error("Error loading Tesseract:", err);
+                const loadingText = document.getElementById('loading-text');
+                if (loadingText) loadingText.innerText = "Gagal memuat AI. Refresh halaman.";
+            }
+        }
+
+        function createGrid() {
+            const container = document.getElementById('grid-container');
+            container.innerHTML = '';
+            
+            for (let r = 0; r < ROWS; r++) {
+                grid[r] = [];
+                for (let c = 0; c < COLS; c++) {
+                    grid[r][c] = {
+                        isActive: false,
+                        words: [],
+                        num: null,
+                        expectedLetter: '',
+                        userLetter: '',
+                        domElement: null
+                    };
+                }
+            }
+
+            wordData.forEach(wd => {
+                let r = wd.row;
+                let c = wd.col;
+
+                if (!grid[r][c].num) {
+                    grid[r][c].num = wd.num;
+                }
+
+                for (let i = 0; i < wd.word.length; i++) {
+                    grid[r][c].isActive = true;
+                    if (!grid[r][c].words.includes(wd.id)) {
+                        grid[r][c].words.push(wd.id);
+                    }
+                    grid[r][c].expectedLetter = wd.word[i];
+
+                    if (wd.dir === 'across') c++;
+                    else r++;
+                }
+            });
+
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const cellData = grid[r][c];
+                    const cellEl = document.createElement('div');
+                    cellEl.classList.add('cell');
+                    cellEl.dataset.row = r;
+                    cellEl.dataset.col = c;
+
+                    if (!cellData.isActive) {
+                        cellEl.classList.add('empty-cell');
+                    } else {
+                        if (cellData.num) {
+                            const numEl = document.createElement('div');
+                            numEl.classList.add('number');
+                            numEl.innerText = cellData.num;
+                            numEl.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                handleNumberClick(cellData.words, r, c);
+                            });
+                            cellEl.appendChild(numEl);
+                        }
+
+                        cellEl.addEventListener('click', () => {
+                            if (cellEl.classList.contains('highlighted')) {
+                                setFocusedCell(r, c);
+                            }
+                        });
+
+                        const textEl = document.createElement('div');
+                        textEl.classList.add('digital-text');
+                        cellEl.appendChild(textEl);
+
+                        const canvas = document.createElement('canvas');
+                        cellEl.appendChild(canvas);
+
+                        const svgTimer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                        svgTimer.classList.add("timer-ring");
+                        svgTimer.setAttribute("viewBox", "0 0 20 20");
+                        svgTimer.innerHTML = `
+                            <circle class="bg" cx="10" cy="10" r="7"></circle>
+                            <circle class="progress" cx="10" cy="10" r="7"></circle>
+                        `;
+                        cellEl.appendChild(svgTimer);
+
+                        setupCanvasDrawing(canvas, cellEl, textEl, svgTimer, r, c);
+                    }
+
+                    cellData.domElement = cellEl;
+                    container.appendChild(cellEl);
+                }
+            }
+        }
+
+        function startTTSGame() {
+            document.getElementById('dashboard-screen').classList.add('hidden');
+        }
+
+        function goToDashboard() {
+            document.getElementById('dashboard-screen').classList.remove('hidden');
+        }
+
+        function openGuideModal() {
+            showModal("info", "📖 Petunjuk Permainan", `
+                <ul>
+                    <li><b>1. Pilih Kata:</b> Tekan nomor pada kotak untuk memilih kata yang akan diisi (kotak akan tersinari kuning).</li>
+                    <li><b>2. Menggambar Huruf:</b> Coret/buat gestur huruf kapital langsung di dalam kotak yang tersinari.</li>
+                    <li><b>3. Penundaan Huruf:</b> Tunggu lingkaran kecil di pojok kanan selesai berputar agar AI membaca huruf Anda.</li>
+                    <li><b>4. Cek Jawaban:</b> Tekan tombol <b>"Cek Kata Ini"</b> untuk mengecek kebenaran kata yang tersinari.</li>
+                    <li><b>5. Hapus Isian:</b> Gunakan tombol <b>"Hapus Kotak"</b> atau <b>"Hapus Kata Ini"</b> jika ada kesalahan penulisan.</li>
+                </ul>
+            `);
+        }
+
+        function handleNumberClick(wordIds, r, c) {
+            if (wordIds.length > 1) {
+                if (activeWordId === wordIds[0]) {
+                    activeWordId = wordIds[1];
+                } else {
+                    activeWordId = wordIds[0];
+                }
+            } else {
+                activeWordId = wordIds[0];
+            }
+
+            setFocusedCell(r, c);
+            updateHighlights();
+        }
+
+        function setFocusedCell(r, c) {
+            focusedCellPos = { r, c };
+            updateFocusVisuals();
+        }
+
+        function updateFocusVisuals() {
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const cellData = grid[r][c];
+                    if (cellData.isActive) {
+                        if (focusedCellPos && focusedCellPos.r === r && focusedCellPos.c === c) {
+                            cellData.domElement.classList.add('focused');
+                        } else {
+                            cellData.domElement.classList.remove('focused');
+                        }
+                    }
+                }
+            }
+        }
+
+        function updateHighlights() {
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const cellData = grid[r][c];
+                    if (cellData.isActive) {
+                        if (activeWordId && cellData.words.includes(activeWordId)) {
+                            cellData.domElement.classList.add('highlighted');
+                            resizeCanvas(cellData.domElement.querySelector('canvas'));
+                        } else {
+                            cellData.domElement.classList.remove('highlighted');
+                        }
+                    }
+                }
+            }
+            updateFocusVisuals();
+        }
+
+        function setupCanvasDrawing(canvas, cellEl, textEl, svgTimer, r, c) {
+            const ctx = canvas.getContext('2d');
+            let isDrawing = false;
+
+            function setCanvasSize() {
+                canvas.width = cellEl.clientWidth;
+                canvas.height = cellEl.clientHeight;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = '#020617';
+            }
+
+            setCanvasSize();
+            window.addEventListener('resize', setCanvasSize);
+
+            const startDraw = (e) => {
+                if (!cellEl.classList.contains('highlighted')) return;
+                isDrawing = true;
+                setFocusedCell(r, c);
+
+                textEl.innerText = "";
+                grid[r][c].userLetter = "";
+
+                cellEl.classList.remove('correct', 'incorrect');
+                cancelCellTimer(r, c, svgTimer);
+
+                const pos = getPos(e);
+                ctx.beginPath();
+                ctx.moveTo(pos.x, pos.y);
+            };
+
+            const draw = (e) => {
+                if (!isDrawing) return;
+                e.preventDefault();
+                const pos = getPos(e);
+                ctx.lineTo(pos.x, pos.y);
+                ctx.stroke();
+            };
+
+            const stopDraw = () => {
+                if (!isDrawing) return;
+                isDrawing = false;
+                ctx.closePath();
+
+                startCellTimer(r, c, canvas, textEl, ctx, svgTimer);
+            };
+
+            function getPos(e) {
+                const rect = canvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return {
+                    x: clientX - rect.left,
+                    y: clientY - rect.top
+                };
+            }
+
+            canvas.addEventListener('mousedown', startDraw);
+            canvas.addEventListener('mousemove', draw);
+            window.addEventListener('mouseup', stopDraw);
+
+            canvas.addEventListener('touchstart', startDraw, { passive: false });
+            canvas.addEventListener('touchmove', draw, { passive: false });
+            window.addEventListener('touchend', stopDraw);
+        }
+
+        function startCellTimer(r, c, canvas, textEl, ctx, svgTimer) {
+            const key = `${r}-${c}`;
+            cancelCellTimer(r, c, svgTimer);
+
+            svgTimer.style.display = 'block';
+            const progressCircle = svgTimer.querySelector('.progress');
+            const circumference = 44;
+
+            let startTime = Date.now();
+
+            const animInterval = setInterval(() => {
+                let elapsed = Date.now() - startTime;
+                let fraction = elapsed / DRAW_DELAY_MS;
+                if (fraction > 1) fraction = 1;
+
+                let offset = circumference * (1 - fraction);
+                progressCircle.style.strokeDashoffset = offset;
+            }, 50);
+
+            const timeoutId = setTimeout(() => {
+                cancelCellTimer(r, c, svgTimer);
+                recognizeLetter(canvas, textEl, ctx, r, c);
+            }, DRAW_DELAY_MS);
+
+            cellTimers[key] = { timeoutId, animInterval, svgTimer };
+        }
+
+        function cancelCellTimer(r, c, svgTimer) {
+            const key = `${r}-${c}`;
+            if (cellTimers[key]) {
+                clearTimeout(cellTimers[key].timeoutId);
+                clearInterval(cellTimers[key].animInterval);
+                delete cellTimers[key];
+            }
+            if (svgTimer) {
+                svgTimer.style.display = 'none';
+            }
+        }
+
+        async function recognizeLetter(canvas, textEl, ctx, r, c) {
+            if (!tessWorker) return;
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            tempCtx.fillStyle = '#ffffff';
+            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+            tempCtx.drawImage(canvas, 0, 0);
+
+            try {
+                const { data: { text } } = await tessWorker.recognize(tempCanvas);
+                let detected = text.replace(/[^A-Z]/gi, '').trim().toUpperCase();
+
+                if (detected.length > 0) {
+                    let char = detected[0];
+                    textEl.innerText = char;
+                    grid[r][c].userLetter = char;
+
+                    moveToNextCellInWord(r, c);
+                }
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            } catch (err) {
+                console.error("Gagal OCR:", err);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        function moveToNextCellInWord(r, c) {
+            if (!activeWordId) return;
+            const currentWord = wordData.find(w => w.id === activeWordId);
+            if (!currentWord) return;
+
+            let nextR = r;
+            let nextC = c;
+
+            if (currentWord.dir === 'across') nextC++;
+            else nextR++;
+
+            if (nextR < ROWS && nextC < COLS && grid[nextR][nextC].words.includes(activeWordId)) {
+                setFocusedCell(nextR, nextC);
+            }
+        }
+
+        function resizeCanvas(canvas) {
+            if (canvas) {
+                const parent = canvas.parentElement;
+                canvas.width = parent.clientWidth;
+                canvas.height = parent.clientHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = '#020617';
+            }
+        }
+
+        function checkActiveWord() {
+            if (!activeWordId) {
+                showModal("info", "Pilih Kata Terlebih Dahulu", "Silakan tekan angka nomor pada kotak terlebih dahulu untuk memilih kata yang ingin dicek.");
+                return;
+            }
+
+            const currentWord = wordData.find(w => w.id === activeWordId);
+            let r = currentWord.row;
+            let c = currentWord.col;
+
+            let isFilled = true;
+            let isCorrect = true;
+
+            for (let i = 0; i < currentWord.word.length; i++) {
+                const cellData = grid[r][c];
+                if (!cellData.userLetter) {
+                    isFilled = false;
+                }
+                if (cellData.userLetter !== cellData.expectedLetter) {
+                    isCorrect = false;
+                }
+
+                if (currentWord.dir === 'across') c++;
+                else r++;
+            }
+
+            r = currentWord.row;
+            c = currentWord.col;
+            for (let i = 0; i < currentWord.word.length; i++) {
+                const cellData = grid[r][c];
+                cellData.domElement.classList.remove('correct', 'incorrect');
+
+                if (isCorrect) {
+                    cellData.domElement.classList.add('correct');
+                } else if (cellData.userLetter) {
+                    cellData.domElement.classList.add('incorrect');
+                }
+
+                if (currentWord.dir === 'across') c++;
+                else r++;
+            }
+
+            if (!isFilled) {
+                showModal("info", "Jawaban Belum Lengkap", `Kata untuk <b>${currentWord.title}</b> belum terisi penuh. Lengkapi dahulu semua kotaknya!`);
+            } else if (isCorrect) {
+                triggerConfetti();
+                showModal("correct", "Jawaban Benar! 🎉", `Hebat sekali! Kata untuk <b>${currentWord.title}</b> (${currentWord.word}) adalah BENAR!`);
+            } else {
+                showModal("incorrect", "Jawaban Masih Salah ❌", `Maaf, isian kata untuk <b>${currentWord.title}</b> masih belum tepat. Periksa kembali kotak berwarna merah.`);
+            }
+        }
+
+        function clearFocusedCell() {
+            if (!focusedCellPos) {
+                showModal("info", "Pilih Kotak", "Tekan kotak terlebih dahulu untuk menghapus isiannya.");
+                return;
+            }
+
+            const { r, c } = focusedCellPos;
+            const cellData = grid[r][c];
+            cellData.userLetter = "";
+            cellData.domElement.classList.remove('correct', 'incorrect');
+            
+            const textEl = cellData.domElement.querySelector('.digital-text');
+            if (textEl) textEl.innerText = "";
+
+            const canvas = cellData.domElement.querySelector('canvas');
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+
+            const svgTimer = cellData.domElement.querySelector('.timer-ring');
+            cancelCellTimer(r, c, svgTimer);
+        }
+
+        function clearActiveWord() {
+            if (!activeWordId) {
+                showModal("info", "Pilih Kata", "Tekan angka nomor pada kotak untuk memilih kata yang ingin dihapus.");
+                return;
+            }
+
+            const currentWord = wordData.find(w => w.id === activeWordId);
+            let r = currentWord.row;
+            let c = currentWord.col;
+
+            for (let i = 0; i < currentWord.word.length; i++) {
+                const cellData = grid[r][c];
+                cellData.userLetter = "";
+                cellData.domElement.classList.remove('correct', 'incorrect');
+
+                const textEl = cellData.domElement.querySelector('.digital-text');
+                if (textEl) textEl.innerText = "";
+
+                const canvas = cellData.domElement.querySelector('canvas');
+                if (canvas) {
+                    const ctx = canvas.getContext('2d');
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+
+                const svgTimer = cellData.domElement.querySelector('.timer-ring');
+                cancelCellTimer(r, c, svgTimer);
+
+                if (currentWord.dir === 'across') c++;
+                else r++;
+            }
+        }
+
+        function showModal(type, title, messageHtml) {
+            const modal = document.getElementById('result-modal');
+            const cardBox = document.getElementById('modal-card-box');
+            const iconEl = document.getElementById('modal-icon');
+            const titleEl = document.getElementById('modal-title');
+            const msgEl = document.getElementById('modal-message');
+
+            cardBox.className = "modal-card";
+            
+            if (type === "correct") {
+                cardBox.classList.add("correct-modal");
+                iconEl.innerText = "🌟";
+            } else if (type === "incorrect") {
+                cardBox.classList.add("incorrect-modal", "shake");
+                iconEl.innerText = "❌";
+            } else {
+                cardBox.classList.add("info-modal");
+                iconEl.innerText = "💡";
+            }
+
+            titleEl.innerText = title;
+            msgEl.innerHTML = messageHtml;
+
+            modal.style.display = "flex";
+        }
+
+        function closeModal() {
+            document.getElementById('result-modal').style.display = 'none';
+        }
+
+        function triggerConfetti() {
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 80,
+                    spread: 70,
+                    origin: { y: 0.6 }
+                });
+            }
+        }
+
+        window.onload = () => {
+            createGrid();
+            initTesseract();
+        };
+    </script>
+</body>
+</html>
